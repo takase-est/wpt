@@ -561,6 +561,9 @@ class WdspecRun(object):
 
 
 class ConnectionlessBaseProtocolPart(BaseProtocolPart):
+    def load(self, url):
+        pass
+
     def execute_script(self, script, asynchronous=False):
         pass
 
