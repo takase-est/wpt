@@ -441,8 +441,12 @@ class ReftestTest(Test):
 
         if nodes is None:
             nodes = {}
+        else:
+            assert False
         if references_seen is None:
             references_seen = set()
+        else:
+            assert False
 
         url = manifest_test.url
 
@@ -460,36 +464,43 @@ class ReftestTest(Test):
 
         nodes[url] = node
 
+        refs_by_type = defaultdict(list)
+
         for ref_url, ref_type in manifest_test.references:
-            comparison_key = (ref_type,) + tuple(sorted([url, ref_url]))
-            if ref_url in nodes:
-                manifest_node = ref_url
-                if comparison_key in references_seen:
-                    # We have reached a cycle so stop here
-                    # Note that just seeing a node for the second time is not
-                    # enough to detect a cycle because
-                    # A != B != C != A must include C != A
-                    # but A == B == A should not include the redundant B == A.
-                    continue
+            refs_by_type[ref_type].append(ref_url)
 
-            references_seen.add(comparison_key)
-
-            manifest_node = manifest_file.get_reference(ref_url)
-            if manifest_node:
-                reference = ReftestTest.from_manifest(manifest_file,
-                                                      manifest_node,
-                                                      [],
-                                                      None,
-                                                      nodes,
-                                                      references_seen)
-            else:
-                reference = ReftestTest(manifest_file.tests_root,
+        mismatch_walk = None
+        if refs_by_type["!="]:
+            mismatch_walk = ReftestTest(manifest_file.tests_root,
                                         ref_url,
                                         [],
                                         None,
                                         [])
+            cmp_ref = mismatch_walk
+            for ref_url in refs_by_type["!="][1:]:
+                cmp_self = ReftestTest(manifest_file.tests_root,
+                                       url,
+                                       [],
+                                       None,
+                                       [])
+                cmp_ref.references.append((cmp_self, "!="))
+                cmp_ref = ReftestTest(manifest_file.tests_root,
+                                      ref_url,
+                                      [],
+                                      None,
+                                      [])
+                cmp_self.references.append((cmp_ref, "!="))
 
-            node.references.append((reference, ref_type))
+        if refs_by_type["=="]:
+            for ref_url in refs_by_type["=="]:
+                ref = ReftestTest(manifest_file.tests_root,
+                                  ref_url,
+                                  [],
+                                  None,
+                                  [] if mismatch_walk is None else [mismatch_walk])
+                node.references.append((ref, "=="))
+        elif mismatch_walk is not None:
+            node.references.append((mismatch_walk, "!="))
 
         return node
 
