@@ -472,7 +472,7 @@ class ReftestTest(Test):
         mismatch_walk = None
         if refs_by_type["!="]:
             mismatch_walk = ReftestTest(manifest_file.tests_root,
-                                        ref_url,
+                                        refs_by_type["!="][0],
                                         [],
                                         None,
                                         [])
