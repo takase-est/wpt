@@ -491,16 +491,21 @@ class ReftestTest(Test):
                                       [])
                 cmp_self.references.append((cmp_ref, "!="))
 
+        if mismatch_walk is None:
+            mismatch_refs = []
+        else:
+            mismatch_refs = [(mismatch_walk, "!=")]
+
         if refs_by_type["=="]:
             for ref_url in refs_by_type["=="]:
                 ref = ReftestTest(manifest_file.tests_root,
                                   ref_url,
                                   [],
                                   None,
-                                  [] if mismatch_walk is None else [mismatch_walk])
+                                  mismatch_refs)
                 node.references.append((ref, "=="))
-        elif mismatch_walk is not None:
-            node.references.append((mismatch_walk, "!="))
+        else:
+            node.references.extend(mismatch_refs)
 
         return node
 
