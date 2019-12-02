@@ -34,7 +34,7 @@ try:
 except ImportError:
     fast_json = json  # type: ignore
 
-CURRENT_VERSION = 7
+CURRENT_VERSION = 6
 
 
 class ManifestError(Exception):
@@ -376,6 +376,19 @@ class Manifest(object):
             # TODO(MANIFESTv7): remove this condition
             if test_type == "stub":
                 continue
+
+            # merge reftest_node and reftest
+            # TODO(MANIFESTv7): remove this condition
+            if test_type in ("reftest", "reftest_node"):
+                if types and "reftest" not in types:
+                    continue
+                
+                if self._data["reftest"].json_data:
+                    self._data["reftest"].json_data.update(type_paths)
+                else:
+                    self._data["reftest"].set_json(tests_root, type_paths)
+                    
+                continue   
 
             if test_type not in item_classes:
                 raise ManifestError
