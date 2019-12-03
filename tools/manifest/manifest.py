@@ -368,6 +368,14 @@ class Manifest(object):
 
         self._path_hash = {to_os_path(k): v for k, v in iteritems(obj["paths"])}
 
+        # merge reftest_node and reftest
+        # TODO(MANIFESTv7): remove this condition
+        if "reftest_node" in obj["items"]:
+            for path in obj["items"]["reftest_node"]:
+                os_path = to_os_path(path)
+                old_hash, old_type = self._path_hash[os_path]
+                self._path_hash[os_path] = (old_hash, "reftest")
+
         for test_type, type_paths in iteritems(obj["items"]):
             # Drop "stub" items, which are no longer supported but may be
             # present when doing an incremental manifest update.
