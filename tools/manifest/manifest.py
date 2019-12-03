@@ -390,13 +390,13 @@ class Manifest(object):
             if test_type in ("reftest", "reftest_node"):
                 if types and "reftest" not in types:
                     continue
-                
+
                 if self._data["reftest"].json_data:
                     self._data["reftest"].json_data.update(type_paths)
                 else:
                     self._data["reftest"].set_json(tests_root, type_paths)
-                    
-                continue   
+
+                continue
 
             if test_type not in item_classes:
                 raise ManifestError
