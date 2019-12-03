@@ -433,20 +433,9 @@ class ReftestTest(Test):
                       manifest_file,
                       manifest_test,
                       inherit_metadata,
-                      test_metadata,
-                      nodes=None,
-                      references_seen=None):
+                      test_metadata):
 
         timeout = cls.long_timeout if manifest_test.timeout == "long" else cls.default_timeout
-
-        if nodes is None:
-            nodes = {}
-        else:
-            assert False
-        if references_seen is None:
-            references_seen = set()
-        else:
-            assert False
 
         url = manifest_test.url
 
@@ -461,8 +450,6 @@ class ReftestTest(Test):
                    dpi=manifest_test.dpi,
                    protocol="https" if hasattr(manifest_test, "https") and manifest_test.https else "http",
                    fuzzy=manifest_test.fuzzy)
-
-        nodes[url] = node
 
         refs_by_type = defaultdict(list)
 
