@@ -571,12 +571,16 @@ class TestRunnerManager(threading.Thread):
         self.timer.start()
 
     def _timeout(self):
+        # This is executed in a different thread (threading.Timer).
         self.logger.info("Got timeout in harness")
         test = self.state.test
-        self.test_ended(test,
-                        (test.result_cls("EXTERNAL-TIMEOUT",
-                                         "TestRunner hit external timeout "
-                                         "(this may indicate a hang)"), []))
+        self.command_queue.put((
+            "test_ended",
+            test,
+            (test.result_cls("EXTERNAL-TIMEOUT",
+                             "TestRunner hit external timeout "
+                             "(this may indicate a hang)"), []),
+        ))
 
     def test_ended(self, test, results):
         """Handle the end of a test.
