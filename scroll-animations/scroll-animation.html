@@ -89,7 +89,7 @@ promise_test(async t => {
       "The start time is null in Idle state.");
     animation.play();
     // Verify initial start and current times in Pending state.
-    assert_equals(animation.currentTime, 0,
+    assert_equals(animation.currentTime, 200,
       "The current time is a hold time in Pending state.");
     assert_equals(animation.startTime, null,
       "The start time is null in Pending state.");
@@ -125,11 +125,11 @@ promise_test(async t => {
     animation1.play();
     animation2.play();
     // Verify initial start and current times in Pending state.
-    assert_equals(animation1.currentTime, 0,
+    assert_equals(animation1.currentTime, 200,
       "The current time is a hold time in Pending state.");
     assert_equals(animation1.startTime, null,
       "The start time is null in Pending state.");
-    assert_equals(animation2.currentTime, 0,
+    assert_equals(animation2.currentTime, 200,
       "The current time is a hold time in Pending state.");
     assert_equals(animation2.startTime, null,
       "The start time is null in Pending state.");
