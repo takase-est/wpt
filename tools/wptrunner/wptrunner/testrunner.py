@@ -588,8 +588,13 @@ class TestRunnerManager(threading.Thread):
         Output the result of each subtest, and the result of the overall
         harness to the logs.
         """
-        assert isinstance(self.state, RunnerManagerState.running)
-        assert test == self.state.test
+        if (not isinstance(self.state, RunnerManagerState.running)
+                or test != self.state.test):
+            # Due to inherent race conditions in EXTERNAL-TIMEOUT, we might
+            # receive multiple test_ended for a test (e.g. from both Executor
+            # and TestRunner).
+            self.logger.error("Received unexpected test_ended for %s" % test)
+            return
         self.timer.cancel()
         # Write the result of each subtest
         file_result, test_results = results
