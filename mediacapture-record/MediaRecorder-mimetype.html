@@ -116,23 +116,42 @@ for (const mimeType of [
 
 promise_test(async t => {
   const recorder = new MediaRecorder(createAudioStream(t));
+  const onstartPromise = new Promise(resolve => {
+    recorder.onstart = () => {
+      assert_not_equals(recorder.mimeType, "",
+        "MediaRecorder has a MIMEtype after start() for audio");
+      assert_regexp_match(recorder.mimeType, /^audio\//,
+        "MIMEtype has an expected media type");
+      assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+/,
+        "MIMEtype has a container subtype");
+      assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+; codecs=[^,]+$/,
+        "MIMEtype has one codec");
+      resolve();
+    }
+  });
   recorder.start();
   assert_equals(recorder.mimeType, "",
     "MediaRecorder has no MIMEtype after start() for audio");
-
-  await new Promise(r => recorder.onstart = r);
-  assert_not_equals(recorder.mimeType, "",
-    "MediaRecorder has a MIMEtype after 'start' for audio");
-  assert_regexp_match(recorder.mimeType, /^audio\//,
-    "MIMEtype has an expected media type");
-  assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+/,
-    "MIMEtype has a container subtype");
-  assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+; codecs=[^,]+$/,
-    "MIMEtype has one codec");
+  await onstartPromise;
+  recorder.onstart = () => {
+    assert_not_reached('onstart should not fire twice');
+  }
+  await new Promise(r => t.set_timeout(r, 1000));
 }, "MediaRecorder sets a MIMEType after 'start' for audio");
 
 promise_test(async t => {
   const recorder = new MediaRecorder(createVideoStream(t));
+  recorder.onstart = function() {
+    assert_not_equals(recorder.mimeType, "",
+      "MediaRecorder has a MIMEtype after start() for video");
+    assert_regexp_match(recorder.mimeType, /^video\//,
+      "MIMEtype has an expected media type");
+    assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+/,
+      "MIMEtype has a container subtype");
+    assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+; codecs=[^,]+$/,
+      "MIMEtype has one codec");
+    t.done();
+  }
   recorder.start();
   assert_equals(recorder.mimeType, "",
     "MediaRecorder has no MIMEtype after start() for video");
@@ -150,6 +169,17 @@ promise_test(async t => {
 
 promise_test(async t => {
   const recorder = new MediaRecorder(createAudioVideoStream(t));
+  recorder.onstart = function() {
+    assert_not_equals(recorder.mimeType, "",
+      "MediaRecorder has a MIMEtype after start() for audio/video");
+    assert_regexp_match(recorder.mimeType, /^video\//,
+      "MIMEtype has an expected media type");
+    assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+/,
+      "MIMEtype has a container subtype");
+    assert_regexp_match(recorder.mimeType, /^[a-z]+\/[a-z]+; codecs=[^,]+,[^,]+$/,
+      "MIMEtype has two codecs");
+    t.done();
+  }
   recorder.start();
   assert_equals(recorder.mimeType, "",
     "MediaRecorder has no MIMEtype after start() for audio/video");
