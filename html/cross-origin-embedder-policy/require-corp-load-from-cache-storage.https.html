@@ -1,0 +1,275 @@
+<!doctype html>
+<html>
+<title> Retrieve ressources from CacheStorage with Cross-Origin-Embedder-Policy: require-corp</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/get-host-info.sub.js"></script>
+<script src="/service-workers/service-worker/resources/test-helpers.sub.js"></script>
+<script>
+
+/*
+  This document has the header Cross-Origin-Embedder-Policy: require-corp.
+  Cross-Origin Embedder Policy Editor's draft: https://mikewest.github.io/corpp/
+
+  This test retrieving same-origin and cross-origin ressources from the
+  CacheStorage. The ressources are generated from the ServiceWorker or from the
+  network with the header Cross-Origin-Ressource-Policy being one of:
+    - 'same-origin'
+    - 'cross-origin'
+    - <undefined>
+*/
+
+promise_test(async (t) => {
+  const SCOPE = new URL(location.href).pathname;
+  const SCRIPT =
+    'resources/sw-store-to-cache-storage.js?' +
+    `pipe=header(service-worker-allowed,${SCOPE})`;
+
+  const reg = await service_worker_unregister_and_register(t, SCRIPT, SCOPE);
+  t.add_cleanup(() => reg.unregister());
+  await new Promise(resolve => {
+    navigator.serviceWorker.addEventListener('controllerchange', resolve);
+  });
+}, 'setting up');
+
+function remote(path) {
+  const REMOTE_ORIGIN = get_host_info().HTTPS_REMOTE_ORIGIN;
+  return new URL(path, REMOTE_ORIGIN);
+}
+
+function local(path) {
+  return new URL(path, location.origin);
+}
+
+// Send a message to the currently active ServiceWorker and wait for its response.
+function executeCommandInServiceWorker(command) {
+  return new Promise(resolve => {
+    navigator.serviceWorker.addEventListener('message', e => resolve(e.data));
+    navigator.serviceWorker.controller.postMessage(command);
+  });
+}
+
+// Try loading an image from a |response|. Return a Promise resolving or
+// rejecting depending on the image loading result.
+function readImageFromResponse(response) {
+  return new Promise(async (resolve, reject) => {
+    const blob = await response.blob();
+    const img = document.createElement("img");
+    img.onload = resolve;
+    img.onerror = () => reject({name: "Image.onerror"});
+    img.src = URL.createObjectURL(blob);
+    document.body.appendChild(img);
+  })
+}
+
+const CORP_UNDEFINED = "images/blue.png";
+const CORP_SAME_ORIGIN = "images/blue.png?pipe=header(Cross-Origin-Resource-Policy, same-origin)";
+const CORP_CROSS_ORIGIN = "images/blue.png?pipe=header(Cross-Origin-Resource-Policy, cross-origin)";
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a cross-origin no-cors response generated from the SW into the
+  //    CacheStorage.
+  const url = remote("sw-generated.png");
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "service-worker",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  assert_equals(response.type, "default");
+  assert_equals(response.url, ""); // Response is SW-generated.
+  assert_equals(response.ok, true);
+  assert_equals(response.status, 200);
+  assert_equals(await response.text(), "foo");
+}, "Fetch cross-origin no-cors SW-generated response from CacheStorage.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a cross-origin no-cors response with CORP: same-origin into
+  //    CacheStorage. It must failed, because the ServiceWorker is cross-origin
+  //    with the resource and the resource use CORP: same-site.
+  const url = remote(CORP_SAME_ORIGIN);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "not-stored");
+}, "Fetch cross-origin no-cors with CORP: same-origin.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a cross-origin no-cors response with CORP: cross-origin into
+  //    CacheStorage.
+  const url = remote(CORP_CROSS_ORIGIN);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  // The command is non-cors and the response is cross-origin. Hence the
+  // response is opaque and can't be read directly from this document.
+  assert_equals(response.type, "opaque");
+  assert_equals(response.url, "");
+  assert_equals(response.ok, false);
+  assert_equals(response.status, 0);
+  assert_equals(response.body, null);
+
+  await promise_rejects(t, {name: "Image.onerror"}, readImageFromResponse(response));
+}, "Fetch cross-origin no-cors with CORP: cross-origin from CacheStorage.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a cross-origin no-cors response with CORP: cross-origin into
+  //    CacheStorage.
+  const url = remote(CORP_UNDEFINED);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  // The command is no-cors and the response is cross-origin. Hence the response
+  // is opaque to this document. It can't be read directly.
+  assert_equals(response.type, "opaque");
+  assert_equals(response.url, "");
+  assert_equals(response.ok, false);
+  assert_equals(response.status, 0);
+  assert_equals(response.body, null);
+
+  await promise_rejects(t, {name: "Image.onerror"}, readImageFromResponse(response));
+}, "Fetch cross-origin no-cors with CORP: undefined from CacheStorage.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a same-origin no-cors response generated from the SW into the
+  //    CacheStorage.
+  const url = local("sw-generated.png");
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "service-worker",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  assert_equals(response.type, "default");
+  assert_equals(response.url, ""); // Response is SW-generated.
+  assert_equals(response.ok, true);
+  assert_equals(response.status, 200);
+  assert_equals(await response.text(), "foo");
+}, "Fetch same-origin no-cors SW-generated response from CacheStorage.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a same-origin no-cors response with CORP: cross-origin into
+  //    CacheStorage. It must succeed.
+  const url = local(CORP_SAME_ORIGIN);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  // A same-origin response can always be loaded.
+  assert_equals(response.type, "basic");
+  assert_equals(response.url, url.href);
+  assert_equals(response.ok, true);
+  assert_equals(response.status, 200);
+
+  await readImageFromResponse(response);
+}, "Fetch same-origin no-cors with CORP: same-origin.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a same-origin no-cors response with CORP: cross-origin into
+  //    CacheStorage.
+  const url = local(CORP_CROSS_ORIGIN);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  // A same-origin response can always be loaded.
+  assert_equals(response.type, "basic");
+  assert_equals(response.url, url.href);
+  assert_equals(response.ok, true);
+  assert_equals(response.status, 200);
+
+  await readImageFromResponse(response);
+}, "Fetch same-origin no-cors with CORP: cross-origin from CacheStorage.");
+
+promise_test(async (t) => {
+  // 0. Start from an empty CacheStorage.
+  await caches.delete("v1");
+
+  // 1. Store a same-origin no-cors response with CORP: cross-origin into
+  //    CacheStorage.
+  const url = local(CORP_UNDEFINED);
+  const command = {
+    url: url.href,
+    mode: "no-cors",
+    source: "network",
+  };
+  assert_equals(await executeCommandInServiceWorker(command), "stored");
+
+  // 2. Retrieve it from the CacheStorage.
+  const cache = await caches.open('v1');
+  const response = await cache.match(url, {mode: 'no-cors'});
+
+  // A same-origin response can always be loaded.
+  assert_equals(response.type, "basic");
+  assert_equals(response.url, url.href);
+  assert_equals(response.ok, true);
+  assert_equals(response.status, 200);
+
+  await readImageFromResponse(response);
+}, "Fetch same-origin no-cors with CORP: undefined from CacheStorage.");
+
+</script>
+</html>
